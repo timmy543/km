@@ -1,0 +1,9 @@
+# Godot 4+
+.godot/
+/android/
+
+# .NET
+.vs/
+bin/
+obj/
+*.user
