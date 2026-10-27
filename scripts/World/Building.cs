@@ -56,14 +56,14 @@ public partial class Building : Node2D, IWorkOrder
     }
 
     /// <summary>
-    /// Bod pro Y-řazení: leží mezi dlaždicemi za budovou a před ní,
-    /// takže postavy u vchodu jsou vykresleny před budovou.
+    /// Bod pro Y-řazení leží na přední hraně půdorysu (pata fasády): vše za budovou
+    /// se kreslí dřív, postavy u vchodu a před fasádou až po ní.
     /// </summary>
     public void UpdatePosition()
     {
         var map = Main.Instance.Map;
-        var c = new Vector2(Origin.X + Def.Size.X / 2f, Origin.Y + Def.Size.Y / 2f);
-        Position = map.GroundToScreen(c) + new Vector2(0, 4);
+        var c = new Vector2(Origin.X + Def.Size.X / 2f, Origin.Y + Def.Size.Y);
+        Position = map.GroundToScreen(c) + new Vector2(0, -1);
         QueueRedraw();
     }
 

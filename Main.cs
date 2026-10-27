@@ -6,13 +6,19 @@ namespace km;
 public enum ToolMode { None, Build, Road, Demolish }
 
 /// <summary>
-/// Kořen hry: vygeneruje mapu, postaví scénu, založí osadu a řeší vstup hráče.
+/// Jedna rozehraná hra: vygeneruje mapu, postaví scénu, založí osadu a řeší vstup hráče.
+/// Vytváří ji App – buď jako hru, nebo jako živé pozadí hlavního menu.
 /// </summary>
 public partial class Main : Node2D
 {
     public const int MapSize = 96;
 
     public static Main Instance { get; private set; } = null!;
+
+    // parametry nastavené před přidáním do stromu
+    public int Seed;
+    public bool RevealAll;
+    public bool MenuBackground;   // bez UI a vstupu, kamera se pomalu posouvá, vesnice se staví sama
 
     public GameMap Map { get; private set; } = null!;
     public Economy Eco { get; } = new();
@@ -28,6 +34,7 @@ public partial class Main : Node2D
     public bool ShowPaths { get; set; }
 
     readonly RandomNumberGenerator rng = new();
+    PauseMenu? pauseMenu;
     bool roadDrag;
     Vector2I lastRoadTile;
     public static readonly double[] Speeds = { 1, 2, 3, 5 };
@@ -47,17 +54,13 @@ public partial class Main : Node2D
     public override void _Ready()
     {
         Instance = this;
-        rng.Randomize();
-        int seed = (int)(rng.Randi() % 100000);
-        foreach (var a in OS.GetCmdlineUserArgs())
-            if (a.StartsWith("--seed=")) seed = a["--seed=".Length..].ToInt();
-        rng.Seed = (ulong)seed;
-        GD.Print($"km: seed mapy {seed}");
+        rng.Seed = (ulong)Seed;
+        GD.Print($"km: seed mapy {Seed}");
 
-        ArtFactory.Init(seed);
-        TerrainArt.Init(seed);
+        ArtFactory.Init(Seed);
+        TerrainArt.Init(Seed);
         Map = new GameMap(MapSize, MapSize);
-        Map.Generate(seed);
+        Map.Generate(Seed);
 
         Terrain = new TerrainView { ZIndex = -20 };
         AddChild(Terrain);
@@ -65,7 +68,8 @@ public partial class Main : Node2D
         AddChild(Roads);
         Objects = new Node2D { YSortEnabled = true };
         AddChild(Objects);
-        AddChild(new Overlay { ZIndex = 20 });
+        AddChild(new FogLayer { ZIndex = 15 });
+        if (!MenuBackground) AddChild(new Overlay { ZIndex = 20 });
 
         foreach (var t in Map.GenTrees) SpawnTree(t, true);
         foreach (var t in Map.GenStones) SpawnStone(t);
@@ -74,20 +78,77 @@ public partial class Main : Node2D
 
         Cam = new CameraRig
         {
-            Bounds = new Rect2(-MapSize * Iso.HalfW, -60, MapSize * Iso.TileW, MapSize * Iso.TileH + 260),
+            Bounds = new Rect2(0, -60, MapSize * Iso.Tile, MapSize * Iso.Tile + 260),
+            Locked = MenuBackground,
         };
         AddChild(Cam);
         AddChild(new PostFx());
-        AddChild(new Hud { Layer = 2 });
-        AddChild(new DevTools());
+        if (!MenuBackground)
+        {
+            AddChild(new Hud { Layer = 2 });
+            pauseMenu = new PauseMenu();
+            AddChild(pauseMenu);
+            AddChild(new DevTools());
+        }
 
+        if (RevealAll || MenuBackground) Map.Reveal(new Vector2(MapSize, MapSize) * 0.5f, MapSize);
         FoundSettlement();
+        if (MenuBackground)
+        {
+            AutoBuild();
+            Cam.ApplyZoom(1.1f);
+        }
+    }
+
+    public void OpenPauseMenu(bool settings = false) => pauseMenu?.Open(settings);
+
+    /// <summary>Naplánuje dřevorubce, pilu, kamenolom a silnice ke skladu (demo a pozadí menu).</summary>
+    public void AutoBuild()
+    {
+        var store = Eco.NearestStore(Map.Center);
+        if (store == null) return;
+        foreach (var (def, offset) in new[]
+                 {
+                     (BuildingDef.Woodcutter, new Vector2I(-6, 3)),
+                     (BuildingDef.Sawmill, new Vector2I(3, 5)),
+                     (BuildingDef.Quarry, new Vector2I(6, -5)),
+                 })
+        {
+            var b = PlaceNear(def, Map.Center + offset);
+            if (b == null) continue;
+            var path = Map.FindPath(b.Entrance, store.Entrance);
+            if (path == null) continue;
+            for (int i = 0; i < path.Count; i++)
+            {
+                // diagonální krok doplnit rohovou dlaždicí, ať je silnice souvislá
+                if (i > 0 && path[i].X != path[i - 1].X && path[i].Y != path[i - 1].Y)
+                {
+                    var corner = new Vector2I(path[i].X, path[i - 1].Y);
+                    if (!Map.CanPlaceRoad(corner)) corner = new Vector2I(path[i - 1].X, path[i].Y);
+                    PlaceRoadPlan(corner);
+                }
+                PlaceRoadPlan(path[i]);
+            }
+        }
+    }
+
+    Building? PlaceNear(BuildingDef def, Vector2I c)
+    {
+        for (int r = 0; r <= 10; r++)
+        for (int y = c.Y - r; y <= c.Y + r; y++)
+        for (int x = c.X - r; x <= c.X + r; x++)
+        {
+            var o = new Vector2I(x, y);
+            if (Map.CanPlace(def, o, null)) return PlaceBuilding(def, o);
+        }
+        return null;
     }
 
     void FoundSettlement()
     {
         var def = BuildingDef.Storehouse;
         var origin = Map.Center - new Vector2I(1, 1);
+        Map.Reveal(Iso.TileCenter(Map.Center), 16f);
         var store = PlaceBuilding(def, origin, force: true)!;
         store.DigWork = store.DigTotal;
         store.State = BuildState.Done;
@@ -106,10 +167,29 @@ public partial class Main : Node2D
         Cam.Position = Map.GroundToScreen(Iso.TileCenter(store.Entrance));
     }
 
+    float revealTimer, menuTime;
+
     public override void _Process(double delta)
     {
-        HoverTile = Map.ScreenToTile(GetGlobalMousePosition());
         Eco.Update((float)delta);
+
+        revealTimer -= (float)delta;
+        if (revealTimer <= 0f)
+        {
+            revealTimer = 0.5f;
+            foreach (var u in Eco.AllUnits)
+                if (u.Visible) Map.Reveal(u.GridPos, 7f);
+        }
+
+        if (MenuBackground)
+        {
+            // pomalý průlet nad vesnicí
+            menuTime += (float)delta;
+            var c = Map.GroundToScreen(Iso.TileCenter(Map.Center));
+            Cam.JumpTo(c + new Vector2(Mathf.Cos(menuTime * 0.05f) * 380f, Mathf.Sin(menuTime * 0.05f) * 240f));
+            return;
+        }
+        HoverTile = Map.ScreenToTile(GetGlobalMousePosition());
     }
 
     // ---------------------------------------------------------------- vstup
@@ -127,6 +207,7 @@ public partial class Main : Node2D
 
     public override void _UnhandledInput(InputEvent e)
     {
+        if (MenuBackground) return;
         switch (e)
         {
             case InputEventMouseButton { ButtonIndex: MouseButton.Left } mb:
@@ -152,8 +233,12 @@ public partial class Main : Node2D
         switch (key)
         {
             case Key.Escape:
-                SelectTool(ToolMode.None);
-                Selected = null;
+                if (Tool != ToolMode.None || Selected != null)
+                {
+                    SelectTool(ToolMode.None);
+                    Selected = null;
+                }
+                else pauseMenu?.Open();
                 break;
             case Key.R: SelectTool(ToolMode.Road); break;
             case Key.X or Key.Delete: SelectTool(ToolMode.Demolish); break;
@@ -221,6 +306,7 @@ public partial class Main : Node2D
             if (force && Map.Stones[t.X, t.Y] is { } stone) RemoveStone(stone);
         }
         Map.OccupyBuilding(b);
+        Map.Reveal(new Vector2(origin.X + def.Size.X / 2f, origin.Y + def.Size.Y / 2f), 8f);
         Objects.AddChild(b);
         Eco.Buildings.Add(b);
         Eco.Orders.Add(b);

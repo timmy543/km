@@ -202,10 +202,10 @@ void fragment() {
 
     float Light(int i, int j)
     {
-        // stínování svahu: světlo přichází z levého horního rohu obrazovky (směr -X v mřížce)
+        // stínování svahu: světlo zleva shora – svahy stoupající doprava a k divákovi jsou světlejší
         float hx = map.Heights[System.Math.Min(i + 1, map.Width), j] - map.Heights[System.Math.Max(i - 1, 0), j];
         float hy = map.Heights[i, System.Math.Min(j + 1, map.Height)] - map.Heights[i, System.Math.Max(j - 1, 0)];
-        float light = 1f + 0.04f * (hx + 0.4f * hy);
+        float light = 1f + 0.018f * (hx + hy);
 
         // lesní půda je tmavší
         int trees = 0;

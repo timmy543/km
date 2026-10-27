@@ -91,8 +91,7 @@ public abstract partial class Unit : Node2D
     public void FaceTowards(Vector2 grid)
     {
         var d = grid - GridPos;
-        float sx = d.X - d.Y; // směr na obrazovce
-        if (Mathf.Abs(sx) > 0.01f) FacingLeft = sx < 0;
+        if (Mathf.Abs(d.X) > 0.01f) FacingLeft = d.X < 0;
     }
 
     public void SyncPosition() => Position = Map.GroundToScreen(GridPos) + lane;

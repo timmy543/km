@@ -21,6 +21,8 @@ void fragment() {
 }
 ";
 
+    public override void _Process(double delta) => Visible = Settings.PostEffects;
+
     public override void _Ready()
     {
         Layer = 1;
@@ -30,6 +32,6 @@ void fragment() {
             Material = new ShaderMaterial { Shader = new Shader { Code = Shader } },
         };
         AddChild(rect);
-        rect.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        rect.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
     }
 }

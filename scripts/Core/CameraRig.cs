@@ -9,6 +9,7 @@ public partial class CameraRig : Camera2D
     const float MinZoom = 0.35f, MaxZoom = 3f;
 
     public Rect2 Bounds;
+    public bool Locked;   // pozadí menu – kameru řídí Main
     bool dragging;
     ulong lastTicks;
 
@@ -25,20 +26,38 @@ public partial class CameraRig : Camera2D
         float dt = Mathf.Min((now - lastTicks) / 1_000_000f, 0.1f);
         lastTicks = now;
 
+        if (Locked || GetTree().Paused) return;
         var dir = Vector2.Zero;
         if (Input.IsKeyPressed(Key.A) || Input.IsKeyPressed(Key.Left)) dir.X -= 1;
         if (Input.IsKeyPressed(Key.D) || Input.IsKeyPressed(Key.Right)) dir.X += 1;
         if (Input.IsKeyPressed(Key.W) || Input.IsKeyPressed(Key.Up)) dir.Y -= 1;
         if (Input.IsKeyPressed(Key.S) || Input.IsKeyPressed(Key.Down)) dir.Y += 1;
+
+        // posun kamery myší u okraje obrazovky (jako v KaM)
+        if (Settings.EdgeScroll && DisplayServer.WindowIsFocused())
+        {
+            var m = GetViewport().GetMousePosition();
+            var size = GetViewportRect().Size;
+            const float edge = 4f;
+            if (new Rect2(Vector2.Zero, size).HasPoint(m))
+            {
+                if (m.X <= edge) dir.X -= 1;
+                else if (m.X >= size.X - edge) dir.X += 1;
+                if (m.Y <= edge) dir.Y -= 1;
+                else if (m.Y >= size.Y - edge) dir.Y += 1;
+            }
+        }
+
         if (dir != Vector2.Zero)
         {
-            Position += dir.Normalized() * PanSpeed * dt / Zoom.X;
+            Position += dir.Normalized() * PanSpeed * Settings.ScrollSpeed * dt / Zoom.X;
             ClampToBounds();
         }
     }
 
     public override void _UnhandledInput(InputEvent e)
     {
+        if (Locked) return;
         switch (e)
         {
             case InputEventMouseButton { ButtonIndex: MouseButton.WheelUp, Pressed: true } mb:

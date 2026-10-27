@@ -45,6 +45,7 @@ public sealed class GameMap
         VertexGround = new Terrain[width + 1, height + 1];
         VertexTint = new float[width + 1, height + 1];
         VertexElev = new float[width + 1, height + 1];
+        Explored = new float[width + 1, height + 1];
         Ground = new Terrain[width, height];
         Buildings = new Building?[width, height];
         EntranceOf = new Building?[width, height];
@@ -97,9 +98,9 @@ public sealed class GameMap
         {
             float n = Elev(i, j);
             float e = Mathf.Clamp((n - WaterLevel) / (1f - WaterLevel), 0f, 1f);
-            float h = Mathf.Pow(e, 1.4f) * 42f;
+            float h = Mathf.Pow(e, 1.3f) * 64f;
             float r = Rocky(i, j, n);
-            if (r > 0.2f) h += (r - 0.2f) * 70f;
+            if (r > 0.2f) h += (r - 0.2f) * 120f;
             Heights[i, j] = h;
             VertexGround[i, j] = Classify(i, j);
             VertexTint[i, j] = tintN.GetNoise2D(i, j) * 0.5f + 0.5f;
@@ -175,8 +176,46 @@ public sealed class GameMap
                 GenDecor.Add(t);
         }
 
+        LimitSlopes();
         InitPathfinding();
     }
+
+    /// <summary>
+    /// Při pohledu šikmo shora by se dlaždice, jejíž jižní hrana je o víc než velikost dlaždice
+    /// výš než severní, "přeložila" přes sebe. Svah směrem k divákovi proto omezíme.
+    /// </summary>
+    void LimitSlopes()
+    {
+        const float maxRise = Iso.Tile * 0.6f;
+        for (int j = 1; j <= Height; j++)
+        for (int i = 0; i <= Width; i++)
+            Heights[i, j] = Mathf.Min(Heights[i, j], Heights[i, j - 1] + maxRise);
+    }
+
+    // ---------------------------------------------------------------- mlha (fog of war)
+
+    /// <summary>Prozkoumanost ve vrcholech 0..1 – mlha se kreslí s měkkým okrajem jako v KaM.</summary>
+    public readonly float[,] Explored;
+    public bool FogChanged;
+
+    public void Reveal(Vector2 center, float radius)
+    {
+        int r = Mathf.CeilToInt(radius) + 1;
+        for (int j = Math.Max(0, (int)center.Y - r); j <= Math.Min(Height, (int)center.Y + r); j++)
+        for (int i = Math.Max(0, (int)center.X - r); i <= Math.Min(Width, (int)center.X + r); i++)
+        {
+            float v = Mathf.Clamp((radius - new Vector2(i, j).DistanceTo(center)) / 2.5f, 0f, 1f);
+            if (v > Explored[i, j])
+            {
+                Explored[i, j] = v;
+                FogChanged = true;
+            }
+        }
+    }
+
+    public bool IsExplored(Vector2I t) =>
+        InBounds(t) &&
+        Explored[t.X, t.Y] + Explored[t.X + 1, t.Y] + Explored[t.X, t.Y + 1] + Explored[t.X + 1, t.Y + 1] > 2.8f;
 
     void InitPathfinding()
     {
@@ -389,9 +428,9 @@ public sealed class GameMap
     public bool IsBuildableTile(Vector2I t)
     {
         if (!InBounds(t) || Ground[t.X, t.Y] is Terrain.Water or Terrain.Rock) return false;
-        if (!IsFree(t) || Roads[t.X, t.Y]) return false;
+        if (!IsFree(t) || Roads[t.X, t.Y] || !IsExplored(t)) return false;
         float a = Heights[t.X, t.Y], b = Heights[t.X + 1, t.Y], c = Heights[t.X + 1, t.Y + 1], d = Heights[t.X, t.Y + 1];
-        return Math.Max(Math.Max(a, b), Math.Max(c, d)) - Math.Min(Math.Min(a, b), Math.Min(c, d)) <= 16f;
+        return Math.Max(Math.Max(a, b), Math.Max(c, d)) - Math.Min(Math.Min(a, b), Math.Min(c, d)) <= 22f;
     }
 
     public bool CanPlace(BuildingDef def, Vector2I origin, List<(Vector2I tile, bool ok)>? results)
@@ -415,7 +454,8 @@ public sealed class GameMap
 
     public bool CanPlaceRoad(Vector2I t) =>
         InBounds(t) && Ground[t.X, t.Y] != Terrain.Water && Buildings[t.X, t.Y] == null &&
-        Stones[t.X, t.Y] == null && Trees[t.X, t.Y] == null && !Roads[t.X, t.Y] && RoadPlans[t.X, t.Y] == null;
+        Stones[t.X, t.Y] == null && Trees[t.X, t.Y] == null && !Roads[t.X, t.Y] && RoadPlans[t.X, t.Y] == null &&
+        IsExplored(t);
 
     public void OccupyBuilding(Building b)
     {

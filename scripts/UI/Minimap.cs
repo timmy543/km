@@ -16,7 +16,7 @@ public partial class Minimap : Control
 
     public Minimap()
     {
-        CustomMinimumSize = new Vector2(300, 150);
+        CustomMinimumSize = new Vector2(152, 152);
         MouseFilter = MouseFilterEnum.Stop;
         ClipContents = true;
     }
@@ -46,7 +46,14 @@ public partial class Minimap : Control
         var map = Main.Instance.Map;
         for (int y = 0; y < map.Height; y++)
         for (int x = 0; x < map.Width; x++)
-            img.SetPixel(x, y, TileColor(map, x, y));
+            img.SetPixel(x, y, Fogged(map, x, y, TileColor(map, x, y)));
+    }
+
+    static Color Fogged(GameMap map, int x, int y, Color c)
+    {
+        var e = map.Explored;
+        float v = (e[x, y] + e[x + 1, y] + e[x, y + 1] + e[x + 1, y + 1]) * 0.25f;
+        return Gfx.Shade(c, v);
     }
 
     static Color TileColor(GameMap map, int x, int y)
@@ -83,8 +90,8 @@ public partial class Minimap : Control
         get
         {
             var map = Main.Instance.Map;
-            float worldW = (map.Width + map.Height) * Iso.HalfW;
-            float worldH = (map.Width + map.Height) * Iso.HalfH;
+            float worldW = map.Width * Iso.Tile;
+            float worldH = map.Height * Iso.Tile;
             return Mathf.Min(Size.X / worldW, Size.Y / worldH);
         }
     }
@@ -94,7 +101,7 @@ public partial class Minimap : Control
         get
         {
             var map = Main.Instance.Map;
-            var worldCenter = new Vector2((map.Width - map.Height) * Iso.HalfW * 0.5f, (map.Width + map.Height) * Iso.HalfH * 0.5f);
+            var worldCenter = new Vector2(map.Width, map.Height) * Iso.Tile * 0.5f;
             return Size / 2f - worldCenter * MiniScale;
         }
     }
@@ -105,7 +112,7 @@ public partial class Minimap : Control
     {
         float k = MiniScale;
         var o = Origin;
-        DrawSetTransformMatrix(new Transform2D(new Vector2(Iso.HalfW * k, Iso.HalfH * k), new Vector2(-Iso.HalfW * k, Iso.HalfH * k), o));
+        DrawSetTransformMatrix(new Transform2D(new Vector2(Iso.Tile * k, 0), new Vector2(0, Iso.Tile * k), o));
         DrawTexture(tex, Vector2.Zero);
         DrawSetTransformMatrix(Transform2D.Identity);
 

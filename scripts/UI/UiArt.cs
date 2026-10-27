@@ -22,13 +22,14 @@ public static class UiArt
 
     public static void Init()
     {
+        if (Theme != null) return;
         var names = new[] { "Palatino Linotype", "Book Antiqua", "Georgia", "Cambria", "serif" };
         Serif = new SystemFont { FontNames = names, FontWeight = 500 };
         SerifBold = new SystemFont { FontNames = names, FontWeight = 700 };
 
         var rng = new RandomNumberGenerator { Seed = 4242 };
         var wood = new Color(0.34f, 0.22f, 0.12f);
-        Panel = Box(WoodBox(96, 16, wood, frame: true, gold: true, rivets: true, inset: false, rng), 16, 12);
+        Panel = Box(WoodBox(96, 16, wood, frame: true, gold: true, rivets: true, inset: false, rng), 16, 20);
         Bar = Box(WoodBox(64, 8, wood, frame: true, gold: true, rivets: false, inset: false, rng), 8, 6);
         Inset = Box(WoodBox(48, 6, new Color(0.16f, 0.11f, 0.07f), frame: true, gold: false, rivets: false, inset: true, rng), 6, 4);
 
@@ -77,6 +78,59 @@ public static class UiArt
         t.SetStylebox("fill", "ProgressBar", pbFill);
         t.SetColor("font_color", "ProgressBar", Parchment);
         t.SetFontSize("font_size", "ProgressBar", 12);
+
+        // rozbalovací seznam, menu, zaškrtávátka, posuvník, textové pole
+        foreach (var (name, sb) in new[] { ("normal", normal), ("hover", hover), ("pressed", pressed), ("disabled", disabled) })
+            t.SetStylebox(name, "OptionButton", sb);
+        t.SetStylebox("focus", "OptionButton", new StyleBoxEmpty());
+        foreach (var c in new[] { "font_color", "font_hover_color", "font_pressed_color", "font_focus_color" })
+            t.SetColor(c, "OptionButton", Parchment);
+        t.SetColor("font_outline_color", "OptionButton", new Color(0.08f, 0.05f, 0.02f));
+        t.SetConstant("outline_size", "OptionButton", 3);
+
+        var popup = new StyleBoxFlat { BgColor = new Color(0.20f, 0.13f, 0.08f), BorderColor = new Color(0.62f, 0.46f, 0.22f) };
+        popup.SetBorderWidthAll(2);
+        popup.SetContentMarginAll(6);
+        var popupHover = new StyleBoxFlat { BgColor = new Color(0.50f, 0.36f, 0.16f) };
+        t.SetStylebox("panel", "PopupMenu", popup);
+        t.SetStylebox("hover", "PopupMenu", popupHover);
+        t.SetColor("font_color", "PopupMenu", Parchment);
+        t.SetColor("font_hover_color", "PopupMenu", new Color(1f, 0.95f, 0.8f));
+        t.SetFontSize("font_size", "PopupMenu", 15);
+
+        foreach (var type in new[] { "CheckBox", "CheckButton" })
+        {
+            t.SetStylebox("normal", type, new StyleBoxEmpty());
+            t.SetStylebox("hover", type, new StyleBoxEmpty());
+            t.SetStylebox("pressed", type, new StyleBoxEmpty());
+            t.SetStylebox("hover_pressed", type, new StyleBoxEmpty());
+            t.SetStylebox("focus", type, new StyleBoxEmpty());
+            foreach (var c in new[] { "font_color", "font_hover_color", "font_pressed_color", "font_hover_pressed_color", "font_focus_color" })
+                t.SetColor(c, type, Parchment);
+            t.SetColor("font_outline_color", type, new Color(0.08f, 0.05f, 0.02f));
+            t.SetConstant("outline_size", type, 3);
+        }
+
+        var edit = new StyleBoxFlat { BgColor = new Color(0.12f, 0.08f, 0.05f), BorderColor = new Color(0.55f, 0.40f, 0.20f) };
+        edit.SetBorderWidthAll(2);
+        edit.SetCornerRadiusAll(3);
+        edit.SetContentMarginAll(6);
+        t.SetStylebox("normal", "LineEdit", edit);
+        t.SetStylebox("focus", "LineEdit", edit);
+        t.SetColor("font_color", "LineEdit", Parchment);
+        t.SetColor("font_placeholder_color", "LineEdit", new Color(0.7f, 0.62f, 0.48f));
+        t.SetColor("caret_color", "LineEdit", Gold);
+
+        var track = new StyleBoxFlat { BgColor = new Color(0.12f, 0.08f, 0.05f), BorderColor = new Color(0.45f, 0.32f, 0.16f) };
+        track.SetBorderWidthAll(1);
+        track.SetCornerRadiusAll(3);
+        track.SetContentMarginAll(3);
+        var fill = new StyleBoxFlat { BgColor = new Color(0.78f, 0.58f, 0.24f) };
+        fill.SetCornerRadiusAll(3);
+        fill.SetContentMarginAll(3);
+        t.SetStylebox("slider", "HSlider", track);
+        t.SetStylebox("grabber_area", "HSlider", fill);
+        t.SetStylebox("grabber_area_highlight", "HSlider", fill);
 
         var sep = new StyleBoxLine { Color = new Color(0.62f, 0.46f, 0.22f, 0.7f), Thickness = 2, Vertical = true };
         t.SetStylebox("separator", "VSeparator", sep);

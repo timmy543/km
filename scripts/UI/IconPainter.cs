@@ -138,17 +138,19 @@ public static class IconPainter
     static void BuildingIcon(CanvasItem ci, BuildingDef def, Rect2 r)
     {
         int w = def.Size.X, h = def.Size.Y;
-        var n = Iso.ToScreen(Vector2.Zero);
-        var e = Iso.ToScreen(new Vector2(w, 0));
-        var s = Iso.ToScreen(new Vector2(w, h));
-        var wc = Iso.ToScreen(new Vector2(0, h));
-        float top = Mathf.Min(n.Y - def.WallH, (n.Y + wc.Y) / 2f - def.WallH - def.RoofH) - 3f;
-        float bottom = s.Y + 2f;
-        var box = new Rect2(wc.X - 2f, top, e.X - wc.X + 4f, bottom - top);
+        var nw = Iso.ToScreen(Vector2.Zero);
+        var ne = Iso.ToScreen(new Vector2(w, 0));
+        var se = Iso.ToScreen(new Vector2(w, h));
+        var sw = Iso.ToScreen(new Vector2(0, h));
+        // vršek: zadní hřeben u štítu čelem, jinak zadní okap
+        float top = def.Shape == RoofShape.GableFront
+            ? nw.Y - def.WallH - def.RoofH
+            : Mathf.Min(nw.Y - def.WallH, (nw.Y + sw.Y) / 2f - def.WallH - def.RoofH);
+        var box = new Rect2(sw.X - 9f, top - 4f, ne.X - sw.X + 18f, sw.Y + 6f - (top - 4f));
         float scale = Mathf.Min(r.Size.X / box.Size.X, r.Size.Y / box.Size.Y);
         var offset = r.GetCenter() - box.GetCenter() * scale;
         ci.DrawSetTransform(offset, 0f, new Vector2(scale, scale));
-        BuildingPainter.Draw(ci, def, n, e, s, wc, null, 1f, 0f);
+        BuildingPainter.Draw(ci, def, nw, ne, se, sw, null, 1f, 0f);
         ci.DrawSetTransform(Vector2.Zero, 0f, Vector2.One);
     }
 }

@@ -26,9 +26,7 @@ public partial class Hud : CanvasLayer
 
     public override void _Ready()
     {
-        UiArt.Init();
-        root = new Control { MouseFilter = Control.MouseFilterEnum.Ignore, Theme = UiArt.Theme };
-        root.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        root = new UiRoot();
         AddChild(root);
 
         BuildTopBar();
